@@ -9,11 +9,16 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var runingFeedId = 2
+var newFeedId = 3
+
 type rssFeed struct {
 	ID   int
 	Name string
 
 	ScanSlepper int
+
+	FeedId int
 
 	LastScan  int
 	LastFound int
@@ -35,36 +40,42 @@ func main() {
 	var feedList []rssFeed
 	fmt.Println("sql is online")
 
-	result, err := db.Query("SELECT feed.id, feed.name, feed.ttl, feed.lastUpdate, MAX(entry.date) FROM feed LEFT JOIN entry ON feed.id = entry.id_feed GROUP BY feed.id;")
+	result, err := db.Query("SELECT feed.id, feed.name, feed.ttl, feed.category, feed.lastUpdate, MAX(entry.date) FROM feed LEFT JOIN entry ON feed.id = entry.id_feed GROUP BY feed.id;")
 
 	for result.Next() {
 		var newFeed rssFeed
-		result.Scan(&newFeed.ID, &newFeed.Name, &newFeed.ScanSlepper, &newFeed.LastScan, &newFeed.LastFound)
+		result.Scan(&newFeed.ID, &newFeed.Name, &newFeed.ScanSlepper, &newFeed.FeedId, &newFeed.LastScan, &newFeed.LastFound)
 		feedList = append(feedList, newFeed)
 	}
 
 	for _, v := range feedList {
-		UpdateTime := v.LastScan - v.LastFound
-
-		if UpdateTime < 1209600 {
-			if v.ScanSlepper != 0 {
-				fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
-				db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 0, v.ID)
-			}
-		} else if UpdateTime < 2592000 {
+		if v.FeedId == newFeedId {
 			if v.ScanSlepper != 86400 {
-				fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
 				db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 86400, v.ID)
 			}
-		} else if UpdateTime < 7776000 {
-			if v.ScanSlepper != 604800 {
-				fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
-				db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 604800, v.ID)
-			}
-		} else {
-			if v.ScanSlepper != 2592000 {
-				fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
-				db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 2592000, v.ID)
+		} else if v.FeedId == runingFeedId {
+			UpdateTime := v.LastScan - v.LastFound
+
+			if UpdateTime < 1209600 { //14 days
+				if v.ScanSlepper != 0 {
+					fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
+					db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 0, v.ID)
+				}
+			} else if UpdateTime < 2592000 { //30 days
+				if v.ScanSlepper != 86400 { //1 day
+					fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
+					db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 86400, v.ID)
+				}
+			} else if UpdateTime < 7776000 { //90 days
+				if v.ScanSlepper != 604800 { // 7 days
+					fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
+					db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 604800, v.ID)
+				}
+			} else {
+				if v.ScanSlepper != 2629744 { //30 days
+					fmt.Println(v.Name + " : " + secToHumanTime(UpdateTime))
+					db.Exec("UPDATE feed SET ttl=? WHERE id=?;", 2629744, v.ID)
+				}
 			}
 		}
 	}
